@@ -34,6 +34,8 @@ jobs:
       # step 5: upload coverage report
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
   # job 2: build and run CLI application
   build:
