@@ -57,7 +57,7 @@ jobs:
 
       # step 4: build module
       - name: go build
-        run: go build -o ${{ github.event.repository.name }} cmd/${{ github.event.repository.name }}/main.go
+        run: go build -o ${{ github.event.repository.name }}
 
       # step 5: see usage information
       - name: ./${{ github.event.repository.name }} --help
