@@ -95,6 +95,7 @@ func runLoader(ctx context.Context, wg *sync.WaitGroup, urls <-chan string, cfg 
 	loader := loader.New(client, loader.Config{
 		Timeout: cfg.Timeout,
 		Buffer:  cfg.Buffer,
+		UseHEAD: cfg.UseHEAD,
 	})
 
 	for i := 0; i < cfg.Parallel; i++ {

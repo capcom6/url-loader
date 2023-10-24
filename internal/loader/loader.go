@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"time"
 )
 
 type Config struct {
 	Timeout time.Duration
 	Buffer  uint
+	UseHEAD bool
 }
 
 // Loader loads URLs
@@ -19,6 +21,7 @@ type Loader struct {
 
 	Timeout time.Duration
 	Buffer  uint
+	UseHEAD bool
 }
 
 func New(client *http.Client, cfg Config) *Loader {
@@ -30,20 +33,66 @@ func New(client *http.Client, cfg Config) *Loader {
 		Client:  client,
 		Timeout: cfg.Timeout,
 		Buffer:  cfg.Buffer,
+		UseHEAD: cfg.UseHEAD,
 	}
 }
 
 // Load URL returning stats
-func (l *Loader) Load(ctx context.Context, rawUrl string) (Stats, error) {
+func (l *Loader) Load(ctx context.Context, rawUrl string) (stats Stats, err error) {
 	ctx, cancel := context.WithTimeout(ctx, l.Timeout)
 	defer cancel()
 
+	startTime := time.Now()
+	if l.UseHEAD {
+		stats, err = l.statsByHead(ctx, rawUrl)
+	} else {
+		stats, err = l.statsByGet(ctx, rawUrl)
+	}
+
+	// из задачи не очевидно что считать временем обработки, потому в данном случае считает все, начиная с соединения и заказнчивая загрузкой данных
+	stats.Time = time.Since(startTime)
+
+	return
+}
+
+func (l *Loader) statsByHead(ctx context.Context, rawUrl string) (Stats, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, rawUrl, nil)
+	if err != nil {
+		return Stats{}, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := l.Client.Do(req)
+	if err != nil {
+		return Stats{}, fmt.Errorf("failed to load url: %w", err)
+	}
+	defer func() {
+		// необходимо вычитывать все данные из тела ответа, в противном случае возникает утечка памяти
+		l.countBytes(ctx, resp.Body)
+		_ = resp.Body.Close()
+	}()
+
+	contentLength := resp.Header.Get("Content-Length")
+	if contentLength == "" {
+		return Stats{}, fmt.Errorf("Content-Length header is missing")
+	}
+
+	length, err := strconv.ParseUint(contentLength, 10, 64)
+	if err != nil {
+		return Stats{}, fmt.Errorf("failed to parse Content-Length header: %w", err)
+	}
+
+	return Stats{
+		Url:  rawUrl,
+		Size: length,
+	}, nil
+}
+
+func (l *Loader) statsByGet(ctx context.Context, rawUrl string) (Stats, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawUrl, nil)
 	if err != nil {
 		return Stats{}, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	startTime := time.Now()
 	resp, err := l.Client.Do(req)
 	if err != nil {
 		return Stats{}, fmt.Errorf("failed to load url: %w", err)
@@ -55,12 +104,8 @@ func (l *Loader) Load(ctx context.Context, rawUrl string) (Stats, error) {
 		return Stats{}, fmt.Errorf("failed to count bytes: %w", err)
 	}
 
-	// из задачи не очевидно что считать временем обработки, потому в данном случае считает все, начиная с соединения и заказнчивая загрузкой данных
-	processTime := time.Since(startTime)
-
 	return Stats{
 		Url:  rawUrl,
-		Time: processTime,
 		Size: totalBytes,
 	}, nil
 }

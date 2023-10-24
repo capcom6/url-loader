@@ -9,10 +9,21 @@ import (
 	"time"
 )
 
+func TestLoader_DefaultBuffer(t *testing.T) {
+	loader := New(http.DefaultClient, Config{
+		Timeout: 5 * time.Second,
+	})
+
+	if loader.Buffer != 32*1024 {
+		t.Errorf("expected 32*1024, got %d", loader.Buffer)
+	}
+}
+
 func TestLoader_LoadTable(t *testing.T) {
 	type fields struct {
-		Timeout time.Duration
-		Buffer  uint
+		Timeout   time.Duration
+		Buffer    uint
+		UseHeader bool
 	}
 	type args struct {
 		ctx     context.Context
@@ -94,6 +105,25 @@ func TestLoader_LoadTable(t *testing.T) {
 			want:    Stats{},
 			wantErr: true,
 		},
+		{
+			name: "Use head",
+			fields: fields{
+				Timeout:   10 * time.Millisecond,
+				Buffer:    32 * 1024,
+				UseHeader: true,
+			},
+			args: args{
+				ctx: context.Background(),
+				handler: func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(http.StatusOK)
+					io.WriteString(w, "This is the response body")
+				},
+			},
+			want: Stats{
+				Size: 25,
+			},
+			wantErr: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -103,6 +133,7 @@ func TestLoader_LoadTable(t *testing.T) {
 			l := New(http.DefaultClient, Config{
 				Timeout: tt.fields.Timeout,
 				Buffer:  tt.fields.Buffer,
+				UseHEAD: tt.fields.UseHeader,
 			})
 			got, err := l.Load(tt.args.ctx, server.URL)
 			if (err != nil) != tt.wantErr {

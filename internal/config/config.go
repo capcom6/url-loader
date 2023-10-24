@@ -19,6 +19,7 @@ type LoaderConfig struct {
 	Timeout         time.Duration
 	FollowRedirects bool
 	Buffer          uint
+	UseHEAD         bool
 }
 
 var Reader ReaderConfig
@@ -37,8 +38,10 @@ func Parse() error {
 	flag.DurationVar(&Loader.Timeout, "loader-timeout", time.Second, "timeout")
 	// из задачи не очевидно как поступать с перенаправлениями, потому сделано настройкой
 	flag.BoolVar(&Loader.FollowRedirects, "loader-redirects", true, "follow redirects")
-	// скорость загрузки может существенно зависеть от размера буффера, потому также настройка
+	// скорость загрузки может существенно зависеть от размера буфера, потому также настройка
 	flag.UintVar(&Loader.Buffer, "loader-buffer", 32*1024, "buffer size in bytes")
+	// в ТЗ явно сказано, что необходимо получить контент, но для получения его размера можно использовать и заголовок Content-Length
+	flag.BoolVar(&Loader.UseHEAD, "loader-use-head", false, "use HEAD request and Content-Length header")
 	flag.Parse()
 	Reader.Filenames = flag.Args()
 
